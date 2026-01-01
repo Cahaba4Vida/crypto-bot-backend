@@ -1,13 +1,10 @@
 {
-  "name": "crypto-bot-worker",
+  "name": "crypto-bot-backend",
   "private": true,
-  "type": "module",
+  "workspaces": ["apps/*"],
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js"
-  },
-  "devDependencies": {
-    "typescript": "^5.6.3",
-    "@types/node": "^22.10.2"
+    "build": "npm -w apps/api run build && npm -w apps/worker run build",
+    "start:api": "npm -w apps/api run start",
+    "start:worker": "npm -w apps/worker run start"
   }
 }
