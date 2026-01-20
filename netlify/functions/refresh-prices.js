@@ -1,6 +1,7 @@
 const { getPositions, setSnapshot, getMeta, setMeta } = require('./_lib/storage');
 const { normalizePositions, buildSnapshot } = require('./_lib/compute');
-const { fetchLatestPrices } = require('./_lib/alpaca');
+const { fetchLatestPrices, getAlpacaCredentials } = require('./_lib/alpaca');
+const { requireAdmin } = require('./_lib/auth');
 
 const buildResponse = (statusCode, body) => ({
   statusCode,
@@ -10,47 +11,40 @@ const buildResponse = (statusCode, body) => ({
   },
 });
 
-const refreshPrices = async () => {
-  const positions = normalizePositions(await getPositions());
-  const symbols = [...new Set(positions.map((position) => position.symbol))];
-  const priceMap = await fetchLatestPrices(symbols);
-  const meta = await getMeta();
-  const refreshedMeta = {
-    ...meta,
-    lastRefreshAt: new Date().toISOString(),
-    lastError: null,
-  };
-  const snapshot = buildSnapshot(positions, priceMap, refreshedMeta);
-
-  await setSnapshot(snapshot);
-  await setMeta(refreshedMeta);
-
-  return snapshot;
-};
-
 exports.handler = async (event) => {
-  const adminToken = process.env.ADMIN_TOKEN;
-  if (!adminToken) {
-    return buildResponse(500, { error: 'ADMIN_TOKEN is not configured.' });
+  const auth = requireAdmin(event);
+  if (!auth.ok) {
+    return buildResponse(auth.statusCode, auth.body);
   }
-  const providedToken = event.headers['x-admin-token'] || event.headers['X-Admin-Token'];
-  if (providedToken !== adminToken) {
-    return buildResponse(401, { error: 'Unauthorized.' });
+
+  const { missing } = getAlpacaCredentials();
+  if (missing.length) {
+    console.error('Missing Alpaca env vars.', { missing });
+    return buildResponse(500, { error: 'Missing Alpaca env vars', missing });
   }
 
   try {
-    const snapshot = await refreshPrices();
-    return buildResponse(200, snapshot);
-  } catch (error) {
-    const meta = await getMeta();
-    await setMeta({
-      ...meta,
-      lastError: error.message,
-    });
-    return buildResponse(500, { error: error.message });
-  }
-};
+    const positions = normalizePositions((await getPositions()) || []);
+    const symbols = [...new Set(positions.map((position) => position.symbol))];
+    const { prices, asOf } = await fetchLatestPrices(symbols);
 
-module.exports = {
-  refreshPrices,
+    const meta = await getMeta();
+    const refreshedMeta = {
+      ...(meta || {}),
+      lastRefreshAt: asOf || new Date().toISOString(),
+      lastError: null,
+    };
+    const snapshot = buildSnapshot(positions, prices, refreshedMeta);
+
+    await setSnapshot(snapshot);
+    await setMeta(refreshedMeta);
+
+    return buildResponse(200, { prices, asOf: refreshedMeta.lastRefreshAt });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to refresh prices.';
+    console.error('Refresh prices failed.', error);
+    const meta = await getMeta();
+    await setMeta({ ...(meta || {}), lastError: message });
+    return buildResponse(500, { error: message });
+  }
 };

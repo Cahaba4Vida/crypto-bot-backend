@@ -4,8 +4,3 @@
 
 [functions]
   node_bundler = "esbuild"
-
-[[scheduled]]
-  function = "scheduled-refresh-prices"
-  cron = "0 2 * * *"
-  timezone = "America/Denver"

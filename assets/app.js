@@ -51,6 +51,69 @@ const formatNumber = (value) => {
   }).format(value);
 };
 
+const resolvePrice = (symbol, prices) => {
+  if (!symbol) {
+    return null;
+  }
+  const normalized = symbol.toUpperCase();
+  if (normalized in prices) {
+    return prices[normalized];
+  }
+  if (!normalized.includes('/') && `${normalized}/USD` in prices) {
+    return prices[`${normalized}/USD`];
+  }
+  if (normalized.includes('/')) {
+    const [base] = normalized.split('/');
+    if (base && base in prices) {
+      return prices[base];
+    }
+  }
+  return null;
+};
+
+const buildSnapshotFromPrices = (positionsList, prices, asOf) => {
+  const enriched = positionsList.map((position) => {
+    const lastPrice = resolvePrice(position.symbol, prices);
+    const costBasis = position.costBasis ?? (position.avgCost ? position.avgCost * position.shares : 0);
+    const marketValue = lastPrice ? position.shares * lastPrice : null;
+    const unrealizedPnL = lastPrice ? marketValue - costBasis : null;
+    const unrealizedPnLPct = costBasis ? (unrealizedPnL / costBasis) * 100 : null;
+
+    return {
+      ...position,
+      costBasis,
+      lastPrice,
+      marketValue,
+      unrealizedPnL,
+      unrealizedPnLPct,
+    };
+  });
+
+  const totals = enriched.reduce(
+    (acc, position) => {
+      acc.totalCostBasis += position.costBasis || 0;
+      acc.totalMarketValue += position.marketValue || 0;
+      acc.totalUnrealizedPnL += position.unrealizedPnL || 0;
+      return acc;
+    },
+    { totalCostBasis: 0, totalMarketValue: 0, totalUnrealizedPnL: 0 }
+  );
+
+  const totalUnrealizedPnLPct = totals.totalCostBasis
+    ? (totals.totalUnrealizedPnL / totals.totalCostBasis) * 100
+    : null;
+
+  return {
+    generatedAt: new Date().toISOString(),
+    lastRefreshAt: asOf || null,
+    totalCostBasis: totals.totalCostBasis,
+    totalMarketValue: totals.totalMarketValue,
+    totalUnrealizedPnL: totals.totalUnrealizedPnL,
+    totalUnrealizedPnLPct,
+    positions: enriched,
+  };
+};
+
 const setStatus = (message, isError = false) => {
   statusMessage.textContent = message;
   statusMessage.classList.toggle('error', isError);
@@ -77,16 +140,23 @@ const fetchWithToken = async (url, options = {}) => {
   const headers = {
     ...(options.headers || {}),
     'x-admin-token': token,
+    Authorization: `Bearer ${token}`,
   };
   const response = await fetch(url, {
     ...options,
     headers,
   });
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || `Request failed with status ${response.status}.`);
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch (jsonError) {
+    payload = null;
   }
-  return response.json();
+  if (!response.ok) {
+    const message = payload?.error || `Request failed with status ${response.status}.`;
+    throw new Error(message);
+  }
+  return payload;
 };
 
 const renderSummary = () => {
@@ -165,13 +235,14 @@ const loadInitialData = async () => {
       fetchWithToken('/.netlify/functions/get-positions'),
       fetchWithToken('/.netlify/functions/get-snapshot'),
     ]);
-    positions = positionsResponse || [];
+    positions = positionsResponse.positions || [];
     snapshot = snapshotResponse;
     renderPositions();
     renderSummary();
     setStatus('Portfolio loaded.');
   } catch (error) {
-    setStatus(error.message, true);
+    console.error('Failed to load portfolio data.', error);
+    setStatus('Unable to load portfolio data. Please try again.', true);
   }
 };
 
@@ -189,7 +260,8 @@ const savePositions = async () => {
     renderSummary();
     setStatus('Positions saved.');
   } catch (error) {
-    setStatus(error.message, true);
+    console.error('Failed to save positions.', error);
+    setStatus('Unable to save portfolio data. Please try again.', true);
   }
 };
 
@@ -197,14 +269,16 @@ const refreshPrices = async () => {
   setStatus('Refreshing prices...');
   refreshButton.disabled = true;
   try {
-    snapshot = await fetchWithToken('/.netlify/functions/refresh-prices', {
+    const refreshed = await fetchWithToken('/.netlify/functions/refresh-prices', {
       method: 'POST',
     });
+    snapshot = buildSnapshotFromPrices(positions, refreshed.prices || {}, refreshed.asOf);
     renderSummary();
     renderPositions();
     setStatus('Prices refreshed.');
   } catch (error) {
-    setStatus(error.message, true);
+    console.error('Failed to refresh prices.', error);
+    setStatus('Unable to refresh prices. Please try again.', true);
   } finally {
     refreshButton.disabled = false;
   }
