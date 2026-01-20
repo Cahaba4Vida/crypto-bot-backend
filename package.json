@@ -6,8 +6,5 @@
     "build": "npm -w apps/api run build && npm -w apps/worker run build",
     "start:api": "npm -w apps/api run start",
     "start:worker": "npm -w apps/worker run start"
-  },
-  "dependencies": {
-    "@netlify/blobs": "^7.0.0"
   }
 }
