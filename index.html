@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Portfolio Dashboard</title>
+    <link rel="stylesheet" href="/assets/style.css" />
+  </head>
+  <body>
+    <div id="tokenModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="tokenTitle">
+      <div class="modal-content">
+        <h2 id="tokenTitle">Admin Token Required</h2>
+        <p>Enter the admin token to manage your portfolio and refresh prices.</p>
+        <input id="tokenInput" type="password" placeholder="Admin token" />
+        <button id="saveTokenButton" class="primary">Save Token</button>
+      </div>
+    </div>
+
+    <main class="container">
+      <header class="header">
+        <div>
+          <p class="eyebrow">Netlify Dashboard</p>
+          <h1>Portfolio Dashboard</h1>
+          <p class="subhead">
+            Manage positions manually and fetch live market data from Alpaca for real-time valuation.
+          </p>
+        </div>
+        <div class="header-actions">
+          <button id="savePortfolioButton" class="ghost">Save Portfolio</button>
+          <button id="downloadCsvButton" class="ghost">Download CSV</button>
+          <button id="refreshButton" class="primary">Refresh Prices</button>
+        </div>
+      </header>
+
+      <section class="status" id="statusMessage" role="status" aria-live="polite"></section>
+
+      <section class="cards">
+        <article class="card">
+          <h3>Total Market Value</h3>
+          <p id="totalMarketValue" class="metric">--</p>
+        </article>
+        <article class="card">
+          <h3>Total Cost Basis</h3>
+          <p id="totalCostBasis" class="metric">--</p>
+        </article>
+        <article class="card">
+          <h3>Total Unrealized P/L</h3>
+          <p id="totalUnrealizedPnL" class="metric">--</p>
+        </article>
+        <article class="card">
+          <h3>Unrealized P/L %</h3>
+          <p id="totalUnrealizedPnLPct" class="metric">--</p>
+        </article>
+        <article class="card">
+          <h3>Last Refresh</h3>
+          <p id="lastRefreshAt" class="metric">--</p>
+        </article>
+      </section>
+
+      <section class="table-section">
+        <div class="section-header">
+          <h2>Positions</h2>
+          <p class="muted">Add, edit, or delete positions. Save before refreshing prices.</p>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Shares</th>
+                <th>Avg Cost</th>
+                <th>Cost Basis</th>
+                <th>Last Price</th>
+                <th>Market Value</th>
+                <th>Unrealized P/L</th>
+                <th>Unrealized P/L %</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="positionsBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="table-section">
+        <div class="section-header">
+          <h2>Add Position</h2>
+          <p class="muted">Provide a symbol, shares, and avg cost to compute the cost basis.</p>
+        </div>
+        <form id="addPositionForm" class="form-grid">
+          <label>
+            Symbol
+            <input id="symbolInput" type="text" placeholder="AAPL" required />
+          </label>
+          <label>
+            Shares
+            <input id="sharesInput" type="number" step="0.0001" placeholder="10" required />
+          </label>
+          <label>
+            Avg Cost
+            <input id="avgCostInput" type="number" step="0.01" placeholder="150.00" />
+          </label>
+          <button type="submit" class="primary">Add Position</button>
+        </form>
+      </section>
+    </main>
+
+    <script src="/assets/app.js"></script>
+  </body>
+</html>
