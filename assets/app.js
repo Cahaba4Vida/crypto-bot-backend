@@ -20,6 +20,9 @@ const sharesInput = document.getElementById('sharesInput');
 const avgCostInput = document.getElementById('avgCostInput');
 
 const TOKEN_KEY = 'portfolioDashboardAdminToken';
+const apiMeta = document.querySelector('meta[name="portfolio-api-base-url"]');
+const API_BASE_URL = (window.PORTFOLIO_API_URL || apiMeta?.content || '').replace(/\/$/, '');
+const buildApiUrl = (path) => `${API_BASE_URL}${path}`;
 
 let positions = [];
 let snapshot = null;
@@ -77,16 +80,20 @@ const fetchWithToken = async (url, options = {}) => {
   const headers = {
     ...(options.headers || {}),
     'x-admin-token': token,
+    Authorization: `Bearer ${token}`,
   };
   const response = await fetch(url, {
     ...options,
     headers,
   });
+  const contentType = response.headers.get('content-type') || '';
+  const isJson = contentType.includes('application/json');
+  const payload = isJson ? await response.json() : await response.text();
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || `Request failed with status ${response.status}.`);
+    const message = payload?.error || payload || `Request failed with status ${response.status}.`;
+    throw new Error(message);
   }
-  return response.json();
+  return payload;
 };
 
 const renderSummary = () => {
@@ -162,23 +169,24 @@ const loadInitialData = async () => {
   setStatus('Loading portfolio...');
   try {
     const [positionsResponse, snapshotResponse] = await Promise.all([
-      fetchWithToken('/.netlify/functions/get-positions'),
-      fetchWithToken('/.netlify/functions/get-snapshot'),
+      fetchWithToken(buildApiUrl('/api/admin/positions')),
+      fetchWithToken(buildApiUrl('/api/admin/snapshot')),
     ]);
-    positions = positionsResponse || [];
+    positions = positionsResponse.positions || [];
     snapshot = snapshotResponse;
     renderPositions();
     renderSummary();
     setStatus('Portfolio loaded.');
   } catch (error) {
-    setStatus(error.message, true);
+    console.error('Failed to load portfolio data.', error);
+    setStatus('Unable to load portfolio data. Please try again.', true);
   }
 };
 
 const savePositions = async () => {
   setStatus('Saving positions...');
   try {
-    const saved = await fetchWithToken('/.netlify/functions/save-positions', {
+    const saved = await fetchWithToken(buildApiUrl('/api/admin/positions'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(positions),
@@ -189,7 +197,8 @@ const savePositions = async () => {
     renderSummary();
     setStatus('Positions saved.');
   } catch (error) {
-    setStatus(error.message, true);
+    console.error('Failed to save positions.', error);
+    setStatus('Unable to save portfolio data. Please try again.', true);
   }
 };
 
@@ -197,14 +206,15 @@ const refreshPrices = async () => {
   setStatus('Refreshing prices...');
   refreshButton.disabled = true;
   try {
-    snapshot = await fetchWithToken('/.netlify/functions/refresh-prices', {
+    snapshot = await fetchWithToken(buildApiUrl('/api/admin/refresh-prices'), {
       method: 'POST',
     });
     renderSummary();
     renderPositions();
     setStatus('Prices refreshed.');
   } catch (error) {
-    setStatus(error.message, true);
+    console.error('Failed to refresh prices.', error);
+    setStatus('Unable to refresh prices. Please try again.', true);
   } finally {
     refreshButton.disabled = false;
   }

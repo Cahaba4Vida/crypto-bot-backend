@@ -1,12 +1,11 @@
 # Portfolio Dashboard
 
-Netlify-deployed dashboard that lets you manually manage stock positions and pulls live market data from Alpaca for real-time valuation and P/L.
+Database-backed dashboard that lets you manually manage stock positions and pulls live market data from Alpaca for real-time valuation and P/L.
 
 ## Features
 
 - **Static dashboard** at `/` for viewing and editing positions.
-- **Netlify Functions** for storage and price refresh.
-- **Netlify Blobs** for persistent storage (`positions.json`, `snapshot.json`, `meta.json`).
+- **Express API** for storage and price refresh (Postgres-backed).
 - **Alpaca enrichment** for live prices, market value, and unrealized P/L metrics.
 
 ## Repository Structure
@@ -15,23 +14,28 @@ Netlify-deployed dashboard that lets you manually manage stock positions and pul
 index.html
 assets/style.css
 assets/app.js
-netlify/functions/get-positions.js
-netlify/functions/save-positions.js
-netlify/functions/refresh-prices.js
-netlify/functions/get-snapshot.js
-netlify/functions/get-meta.js
-netlify/functions/scheduled-refresh-prices.js
-netlify/functions/_lib/storage.js
-netlify/functions/_lib/alpaca.js
-netlify/functions/_lib/compute.js
+apps/api/src
+apps/worker/src
 netlify.toml
 ```
 
-## Netlify Environment Variables
+## Environment Variables
 
-Set the following in **Netlify → Site settings → Environment variables**:
+### Frontend
+
+Set the API base URL in the HTML meta tag or via a global injected variable:
+
+- `PORTFOLIO_API_URL` (optional) – the API origin (example: `https://api.example.com`).
+- Alternatively, set `<meta name="portfolio-api-base-url" content="https://api.example.com" />` in `index.html`.
+
+If left blank, the UI will call the API on the same origin.
+
+### API Server
+
+Set the following on the API runtime:
 
 - `ADMIN_TOKEN` (required)
+- `DATABASE_URL` (required)
 - `ALPACA_API_KEY`
 - `ALPACA_API_SECRET`
 - `ALPACA_DATA_BASE_URL` (default `https://data.alpaca.markets`)
@@ -50,11 +54,10 @@ The trade price (`p`) is used as `lastPrice` for market value calculations.
 
 1. Connect the repository to Netlify.
 2. Build settings:
-   - **Build command**: none required (static site + functions)
+   - **Build command**: none required (static site)
    - **Publish directory**: `.`
-   - **Functions directory**: `netlify/functions`
-3. Add environment variables listed above.
-4. Deploy. The scheduled function runs daily at **2:00 AM America/Denver** (configured in `netlify.toml`).
+3. Configure the frontend API base URL (see **Frontend** env vars).
+4. Deploy.
 
 ## Usage
 
@@ -67,6 +70,6 @@ The trade price (`p`) is used as `lastPrice` for market value calculations.
 
 ## Troubleshooting
 
-- **Unauthorized responses**: Ensure the `ADMIN_TOKEN` in Netlify matches the token stored in the browser.
+- **Unauthorized responses**: Ensure the `ADMIN_TOKEN` in the API matches the token stored in the browser.
 - **Alpaca API errors**: Verify `ALPACA_API_KEY` and `ALPACA_API_SECRET` are correct and the data base URL is reachable.
 - **No prices returned**: Confirm the symbols are valid US equities supported by Alpaca market data.
