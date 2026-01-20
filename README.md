@@ -6,7 +6,7 @@ Netlify-deployed dashboard that lets you manually manage stock positions and pul
 
 - **Static dashboard** at `/` for viewing and editing positions.
 - **Netlify Functions** for storage and price refresh.
-- **Netlify DB (Postgres)** for persistent storage (`settings` table stores positions, snapshot, and meta).
+- **Netlify Blobs** for persistent storage (`positions.json`, `snapshot.json`, `meta.json`).
 - **Alpaca enrichment** for live prices, market value, and unrealized P/L metrics.
 
 ## Repository Structure
@@ -15,19 +15,16 @@ Netlify-deployed dashboard that lets you manually manage stock positions and pul
 index.html
 assets/style.css
 assets/app.js
-netlify/functions/get-health.js
 netlify/functions/get-positions.js
 netlify/functions/save-positions.js
 netlify/functions/refresh-prices.js
 netlify/functions/get-snapshot.js
 netlify/functions/get-meta.js
 netlify/functions/scheduled-refresh-prices.js
-netlify/functions/_lib/db.js
 netlify/functions/_lib/storage.js
 netlify/functions/_lib/alpaca.js
 netlify/functions/_lib/compute.js
 netlify.toml
-sql/001_init.sql
 ```
 
 ## Netlify Environment Variables
@@ -35,22 +32,9 @@ sql/001_init.sql
 Set the following in **Netlify → Site settings → Environment variables**:
 
 - `ADMIN_TOKEN` (required)
-- `NETLIFY_DATABASE_URL` (or `DATABASE_URL`) for Netlify DB/Postgres
 - `ALPACA_API_KEY`
 - `ALPACA_API_SECRET`
 - `ALPACA_DATA_BASE_URL` (default `https://data.alpaca.markets`)
-
-## Database Setup (Netlify DB)
-
-1. Create a **Netlify DB** (Neon Postgres) database for your site.
-2. Copy the connection string into `NETLIFY_DATABASE_URL`.
-3. Initialize the schema using the SQL in `sql/001_init.sql`.
-   - You can run it via the Netlify DB console or any Postgres client.
-
-The app stores values in a `settings` table with keys:
-- `positions`
-- `snapshot`
-- `meta`
 
 ## Alpaca Market Data
 
@@ -84,8 +68,5 @@ The trade price (`p`) is used as `lastPrice` for market value calculations.
 ## Troubleshooting
 
 - **Unauthorized responses**: Ensure the `ADMIN_TOKEN` in Netlify matches the token stored in the browser.
-- **Database connection errors**: Confirm `NETLIFY_DATABASE_URL` (or `DATABASE_URL`) is set and reachable.
-- **Missing table**: Run `sql/001_init.sql` to create the `settings` table.
-- **DB health check**: Call `/.netlify/functions/get-health` to verify the database is reachable.
 - **Alpaca API errors**: Verify `ALPACA_API_KEY` and `ALPACA_API_SECRET` are correct and the data base URL is reachable.
 - **No prices returned**: Confirm the symbols are valid US equities supported by Alpaca market data.
