@@ -23,7 +23,9 @@ netlify.toml
 Set the following in **Netlify → Site settings → Environment variables**:
 
 - `ADMIN_TOKEN` (required)
-- `DATABASE_URL` (required, Neon Postgres connection string)
+- `DATABASE_URL` (optional alias for Neon connection string)
+- `NETLIFY_DATABASE_URL` (required with Netlify Neon integration)
+- `NETLIFY_DATABASE_URL_UNPOOLED` (optional fallback for unpooled connections)
 - `ALPACA_API_KEY` (or `ALPACA_KEY_ID`)
 - `ALPACA_API_SECRET` (or `ALPACA_SECRET_KEY`)
 - `ALPACA_DATA_BASE_URL` (default `https://data.alpaca.markets`)

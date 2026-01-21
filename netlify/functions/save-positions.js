@@ -29,6 +29,9 @@ exports.handler = async (event) => {
 
     return buildResponse(200, { positions, snapshot });
   } catch (error) {
+    if (error?.missing) {
+      return buildResponse(500, { error: 'Missing database env var', missing: error.missing });
+    }
     console.error('Failed to save positions.', error);
     return buildResponse(500, { error: 'Unable to save positions.' });
   }

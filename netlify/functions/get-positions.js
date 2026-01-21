@@ -19,6 +19,9 @@ exports.handler = async (event) => {
     const positions = (await getPositions()) || [];
     return buildResponse(200, { positions });
   } catch (error) {
+    if (error?.missing) {
+      return buildResponse(500, { error: 'Missing database env var', missing: error.missing });
+    }
     console.error('Failed to load positions.', error);
     return buildResponse(500, { error: 'Unable to load positions.' });
   }
