@@ -64,9 +64,10 @@ export function buildSnapshot(
   const enriched = positions.map((position) => {
     const lastPrice = priceMap[position.symbol] ?? null;
     const costBasis = position.costBasis ?? (position.avgCost ? position.avgCost * position.shares : 0);
-    const marketValue = lastPrice ? position.shares * lastPrice : null;
-    const unrealizedPnL = lastPrice ? marketValue - costBasis : null;
-    const unrealizedPnLPct = costBasis ? (unrealizedPnL / costBasis) * 100 : null;
+    const hasPrice = lastPrice !== null && lastPrice !== undefined;
+    const marketValue = hasPrice ? position.shares * lastPrice : null;
+    const unrealizedPnL = hasPrice ? position.shares * lastPrice - costBasis : null;
+    const unrealizedPnLPct = costBasis && unrealizedPnL !== null ? (unrealizedPnL / costBasis) * 100 : null;
 
     return {
       ...position,
