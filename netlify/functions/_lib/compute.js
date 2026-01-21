@@ -1,20 +1,24 @@
 const normalizePositions = (positions) =>
-  positions.map((position) => {
-    const shares = Number(position.shares);
-    const avgCost = position.avgCost !== null && position.avgCost !== undefined ? Number(position.avgCost) : null;
-    const costBasis = position.costBasis !== null && position.costBasis !== undefined
-      ? Number(position.costBasis)
-      : avgCost !== null
-        ? shares * avgCost
-        : null;
+  positions
+    .map((position) => {
+      const shares = Number(position.shares);
+      const avgCost =
+        position.avgCost !== null && position.avgCost !== undefined ? Number(position.avgCost) : null;
+      const costBasis =
+        position.costBasis !== null && position.costBasis !== undefined
+          ? Number(position.costBasis)
+          : avgCost !== null
+            ? shares * avgCost
+            : null;
 
-    return {
-      symbol: String(position.symbol || '').toUpperCase().trim(),
-      shares,
-      avgCost: avgCost !== null && !Number.isNaN(avgCost) ? avgCost : null,
-      costBasis: costBasis !== null && !Number.isNaN(costBasis) ? costBasis : null,
-    };
-  }).filter((position) => position.symbol && position.shares > 0 && !Number.isNaN(position.shares));
+      return {
+        symbol: String(position.symbol || '').toUpperCase().trim(),
+        shares,
+        avgCost: avgCost !== null && !Number.isNaN(avgCost) ? avgCost : null,
+        costBasis: costBasis !== null && !Number.isNaN(costBasis) ? costBasis : null,
+      };
+    })
+    .filter((position) => position.symbol && position.shares > 0 && !Number.isNaN(position.shares));
 
 const buildSnapshot = (positions, priceMap, meta) => {
   const enriched = positions.map((position) => {

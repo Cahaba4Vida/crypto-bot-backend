@@ -1,12 +1,11 @@
 # Portfolio Dashboard
 
-Netlify-deployed dashboard that lets you manually manage stock positions and pulls live market data from Alpaca for real-time valuation and P/L.
+Netlify-deployed dashboard that lets you manually manage stock positions and pulls live market data from Alpaca for real-time valuation and P/L, backed by Neon Postgres.
 
 ## Features
 
 - **Static dashboard** at `/` for viewing and editing positions.
-- **Netlify Functions** for storage and price refresh.
-- **Netlify Blobs** for persistent storage (`positions.json`, `snapshot.json`, `meta.json`).
+- **Netlify Functions** for storage and price refresh (Postgres-backed).
 - **Alpaca enrichment** for live prices, market value, and unrealized P/L metrics.
 
 ## Repository Structure
@@ -15,33 +14,43 @@ Netlify-deployed dashboard that lets you manually manage stock positions and pul
 index.html
 assets/style.css
 assets/app.js
-netlify/functions/get-positions.js
-netlify/functions/save-positions.js
-netlify/functions/refresh-prices.js
-netlify/functions/get-snapshot.js
-netlify/functions/get-meta.js
-netlify/functions/scheduled-refresh-prices.js
-netlify/functions/_lib/storage.js
-netlify/functions/_lib/alpaca.js
-netlify/functions/_lib/compute.js
+netlify/functions
 netlify.toml
 ```
 
-## Netlify Environment Variables
+## Environment Variables
 
 Set the following in **Netlify → Site settings → Environment variables**:
 
 - `ADMIN_TOKEN` (required)
-- `ALPACA_API_KEY`
-- `ALPACA_API_SECRET`
+- `DATABASE_URL` (optional alias for Neon connection string)
+- `NETLIFY_DATABASE_URL` (required with Netlify Neon integration)
+- `NETLIFY_DATABASE_URL_UNPOOLED` (optional fallback for unpooled connections)
+- `ALPACA_API_KEY` (or `ALPACA_KEY_ID`)
+- `ALPACA_API_SECRET` (or `ALPACA_SECRET_KEY`)
 - `ALPACA_DATA_BASE_URL` (default `https://data.alpaca.markets`)
+
+## Postgres Storage
+
+The functions use a single `settings` table (created if missing):
+
+```
+CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value JSONB NOT NULL);
+```
+
+Keys used:
+
+- `positions`
+- `snapshot`
+- `meta`
 
 ## Alpaca Market Data
 
-This project uses the **latest trades** endpoint:
+This project uses the **latest trades** endpoints:
 
 ```
 GET https://data.alpaca.markets/v2/stocks/trades/latest?symbols=VOO,SPY
+GET https://data.alpaca.markets/v1beta3/crypto/us/latest/trades?symbols=SOL/USD,BTC/USD
 ```
 
 The trade price (`p`) is used as `lastPrice` for market value calculations.
@@ -54,7 +63,7 @@ The trade price (`p`) is used as `lastPrice` for market value calculations.
    - **Publish directory**: `.`
    - **Functions directory**: `netlify/functions`
 3. Add environment variables listed above.
-4. Deploy. The scheduled function runs daily at **2:00 AM America/Denver** (configured in `netlify.toml`).
+4. Deploy.
 
 ## Usage
 
@@ -69,4 +78,8 @@ The trade price (`p`) is used as `lastPrice` for market value calculations.
 
 - **Unauthorized responses**: Ensure the `ADMIN_TOKEN` in Netlify matches the token stored in the browser.
 - **Alpaca API errors**: Verify `ALPACA_API_KEY` and `ALPACA_API_SECRET` are correct and the data base URL is reachable.
-- **No prices returned**: Confirm the symbols are valid US equities supported by Alpaca market data.
+- **No prices returned**: Confirm the symbols are valid US equities or supported crypto tickers (e.g., `SOL` or `SOL/USD`).
+
+## Health Check
+
+Use `/.netlify/functions/get-health` to verify server configuration without exposing secrets. The response includes booleans for DB, Alpaca, and admin token presence.

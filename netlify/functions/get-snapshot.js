@@ -1,4 +1,5 @@
 const { getSnapshot } = require('./_lib/storage');
+const { requireAdmin } = require('./_lib/auth');
 
 const buildResponse = (statusCode, body) => ({
   statusCode,
@@ -9,19 +10,19 @@ const buildResponse = (statusCode, body) => ({
 });
 
 exports.handler = async (event) => {
-  const adminToken = process.env.ADMIN_TOKEN;
-  if (!adminToken) {
-    return buildResponse(500, { error: 'ADMIN_TOKEN is not configured.' });
-  }
-  const providedToken = event.headers['x-admin-token'] || event.headers['X-Admin-Token'];
-  if (providedToken !== adminToken) {
-    return buildResponse(401, { error: 'Unauthorized.' });
+  const auth = requireAdmin(event);
+  if (!auth.ok) {
+    return buildResponse(auth.statusCode, auth.body);
   }
 
   try {
     const snapshot = await getSnapshot();
     return buildResponse(200, snapshot || {});
   } catch (error) {
-    return buildResponse(500, { error: error.message });
+    if (error?.missing) {
+      return buildResponse(500, { error: 'Missing database env var', missing: error.missing });
+    }
+    console.error('Failed to load snapshot.', error);
+    return buildResponse(500, { error: 'Unable to load snapshot.' });
   }
 };

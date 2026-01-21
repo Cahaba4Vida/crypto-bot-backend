@@ -1,19 +1,55 @@
-const fetchLatestPrices = async (symbols) => {
+const cryptoTickers = new Set([
+  'BTC',
+  'ETH',
+  'SOL',
+  'USDC',
+  'USDT',
+  'AVAX',
+  'ADA',
+  'DOGE',
+  'LTC',
+  'XRP',
+  'BNB',
+  'DOT',
+  'MATIC',
+  'LINK',
+  'ATOM',
+  'UNI',
+]);
+
+const isCryptoSymbol = (symbol) => symbol.includes('/') || cryptoTickers.has(symbol);
+
+const normalizeCryptoPair = (symbol) => (symbol.includes('/') ? symbol : `${symbol}/USD`);
+
+const getAlpacaCredentials = () => {
+  const key = process.env.ALPACA_API_KEY || process.env.ALPACA_KEY_ID || '';
+  const secret = process.env.ALPACA_API_SECRET || process.env.ALPACA_SECRET_KEY || '';
+  const missing = [];
+  if (!key) {
+    missing.push('ALPACA_API_KEY');
+  }
+  if (!secret) {
+    missing.push('ALPACA_API_SECRET');
+  }
+  return {
+    key,
+    secret,
+    missing,
+    baseUrl: process.env.ALPACA_DATA_BASE_URL || 'https://data.alpaca.markets',
+  };
+};
+
+const fetchTrades = async (baseUrl, path, symbols, key, secret) => {
   if (!symbols.length) {
-    return {};
+    return { prices: {}, asOf: null };
   }
-  const { ALPACA_API_KEY, ALPACA_API_SECRET, ALPACA_DATA_BASE_URL } = process.env;
-  if (!ALPACA_API_KEY || !ALPACA_API_SECRET) {
-    throw new Error('Missing Alpaca API credentials.');
-  }
-  const baseUrl = ALPACA_DATA_BASE_URL || 'https://data.alpaca.markets';
-  const url = new URL('/v2/stocks/trades/latest', baseUrl);
+  const url = new URL(path, baseUrl);
   url.searchParams.set('symbols', symbols.join(','));
 
   const response = await fetch(url.toString(), {
     headers: {
-      'APCA-API-KEY-ID': ALPACA_API_KEY,
-      'APCA-API-SECRET-KEY': ALPACA_API_SECRET,
+      'APCA-API-KEY-ID': key,
+      'APCA-API-SECRET-KEY': secret,
     },
   });
 
@@ -24,12 +60,59 @@ const fetchLatestPrices = async (symbols) => {
 
   const data = await response.json();
   const trades = data.trades || {};
-  return Object.entries(trades).reduce((acc, [symbol, trade]) => {
+  const asOf = Object.values(trades)
+    .map((trade) => trade?.t)
+    .filter(Boolean)
+    .sort()
+    .pop() || null;
+
+  const prices = Object.entries(trades).reduce((acc, [symbol, trade]) => {
     acc[symbol] = trade?.p ?? null;
     return acc;
   }, {});
+
+  return { prices, asOf };
+};
+
+const fetchLatestPrices = async (symbols) => {
+  if (!symbols.length) {
+    return { prices: {}, asOf: null };
+  }
+  const { key, secret, baseUrl } = getAlpacaCredentials();
+  const cryptoSymbols = [];
+  const stockSymbols = [];
+
+  symbols.forEach((symbol) => {
+    if (isCryptoSymbol(symbol)) {
+      cryptoSymbols.push(symbol);
+    } else {
+      stockSymbols.push(symbol);
+    }
+  });
+
+  const cryptoPairs = cryptoSymbols.map(normalizeCryptoPair);
+
+  const [stockResponse, cryptoResponse] = await Promise.all([
+    fetchTrades(baseUrl, '/v2/stocks/trades/latest', stockSymbols, key, secret),
+    fetchTrades(baseUrl, '/v1beta3/crypto/us/latest/trades', cryptoPairs, key, secret),
+  ]);
+
+  const prices = {
+    ...stockResponse.prices,
+  };
+
+  cryptoSymbols.forEach((symbol, index) => {
+    const pair = cryptoPairs[index];
+    const price = cryptoResponse.prices[pair] ?? null;
+    prices[symbol] = price;
+  });
+
+  const asOf = [stockResponse.asOf, cryptoResponse.asOf].filter(Boolean).sort().pop() || null;
+
+  return { prices, asOf };
 };
 
 module.exports = {
+  getAlpacaCredentials,
   fetchLatestPrices,
 };

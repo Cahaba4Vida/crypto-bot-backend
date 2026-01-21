@@ -1,5 +1,3 @@
-const { query } = require('./_lib/db');
-
 const buildResponse = (statusCode, body) => ({
   statusCode,
   body: JSON.stringify(body),
@@ -9,10 +7,17 @@ const buildResponse = (statusCode, body) => ({
 });
 
 exports.handler = async () => {
-  try {
-    const { rows } = await query('SELECT NOW() as now');
-    return buildResponse(200, { status: 'ok', now: rows[0]?.now ?? null });
-  } catch (error) {
-    return buildResponse(500, { status: 'error', message: error.message });
-  }
+  const hasDb = Boolean(
+    process.env.DATABASE_URL ||
+      process.env.NETLIFY_DATABASE_URL ||
+      process.env.NETLIFY_DATABASE_URL_UNPOOLED
+  );
+
+  return buildResponse(200, {
+    ok: true,
+    hasDb,
+    hasAlpacaKey: Boolean(process.env.ALPACA_API_KEY || process.env.ALPACA_KEY_ID),
+    hasAlpacaSecret: Boolean(process.env.ALPACA_API_SECRET || process.env.ALPACA_SECRET_KEY),
+    hasAdminToken: Boolean(process.env.ADMIN_TOKEN),
+  });
 };
