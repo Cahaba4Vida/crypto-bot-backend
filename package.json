@@ -1,11 +1,8 @@
 {
   "name": "crypto-bot-backend",
   "private": true,
-  "workspaces": ["apps/*"],
   "scripts": {
-    "build": "npm -w apps/api run build && npm -w apps/worker run build",
-    "start:api": "npm -w apps/api run start",
-    "start:worker": "npm -w apps/worker run start"
+    "build": "echo \"No build step\""
   },
   "dependencies": {
     "pg": "^8.11.5"
