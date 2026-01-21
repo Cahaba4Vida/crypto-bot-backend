@@ -14,14 +14,16 @@ const buildResponse = (statusCode, body) => ({
 exports.handler = async (event) => {
   const auth = requireAdmin(event);
   if (!auth.ok) {
-    console.error('Refresh prices auth failed.', { statusCode: auth.statusCode });
-    return buildResponse(auth.statusCode, auth.body);
+    const error = auth.body?.error || 'unauthorized';
+    const code = auth.statusCode === 401 ? 'unauthorized' : 'missing_admin_token';
+    console.error('Refresh prices auth failed.', { statusCode: auth.statusCode, error });
+    return buildResponse(auth.statusCode, { error, code });
   }
 
   const { missing } = getAlpacaCredentials();
   if (missing.length) {
     console.error('Missing Alpaca env vars.', { missing });
-    return buildResponse(500, { error: 'Missing Alpaca env vars', missing });
+    return buildResponse(400, { error: 'Missing Alpaca env vars', code: 'missing_alpaca_env', missing });
   }
 
   try {
@@ -44,12 +46,16 @@ exports.handler = async (event) => {
   } catch (error) {
     if (error?.missing) {
       console.error('Missing database env vars.', { missing: error.missing });
-      return buildResponse(500, { error: 'Missing database env var', missing: error.missing });
+      return buildResponse(400, {
+        error: 'Missing database env var',
+        code: 'missing_db_env',
+        missing: error.missing,
+      });
     }
     const message = error instanceof Error ? error.message : 'Unable to refresh prices.';
     console.error('Refresh prices failed.', error);
     const meta = await getMeta();
     await setMeta({ ...(meta || {}), lastError: message });
-    return buildResponse(500, { error: message });
+    return buildResponse(500, { error: message, code: 'refresh_failed' });
   }
 };
