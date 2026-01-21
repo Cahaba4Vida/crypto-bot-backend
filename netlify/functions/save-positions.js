@@ -17,11 +17,31 @@ exports.handler = async (event) => {
   }
 
   try {
-    const incoming = JSON.parse(event.body || '[]');
-    if (!Array.isArray(incoming)) {
-      return buildResponse(400, { error: 'Positions payload must be an array.' });
+    let incoming = null;
+    try {
+      incoming = JSON.parse(event.body || 'null');
+    } catch (parseError) {
+      return buildResponse(400, {
+        error: 'Invalid JSON payload.',
+        receivedType: 'invalid_json',
+        receivedKeys: [],
+      });
     }
-    const positions = normalizePositions(incoming);
+
+    const payload = Array.isArray(incoming) ? incoming : incoming?.positions;
+    if (!Array.isArray(payload)) {
+      const receivedType =
+        incoming === null ? 'null' : Array.isArray(incoming) ? 'array' : typeof incoming;
+      const receivedKeys =
+        incoming && typeof incoming === 'object' ? Object.keys(incoming) : [];
+      return buildResponse(400, {
+        error: 'Positions payload must be an array.',
+        receivedType,
+        receivedKeys,
+      });
+    }
+
+    const positions = normalizePositions(payload);
     await setPositions(positions);
     const meta = await getMeta();
     const snapshot = buildSnapshot(positions, {}, meta || {});

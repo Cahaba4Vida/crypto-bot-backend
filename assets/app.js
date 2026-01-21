@@ -51,6 +51,16 @@ const formatNumber = (value) => {
   }).format(value);
 };
 
+const normalizePositionsArray = (value) => {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (Array.isArray(value?.positions)) {
+    return value.positions;
+  }
+  return [];
+};
+
 const resolvePrice = (symbol, prices) => {
   if (!symbol) {
     return null;
@@ -178,6 +188,7 @@ const renderSummary = () => {
 };
 
 const renderPositions = () => {
+  positions = normalizePositionsArray(positions);
   positionsBody.innerHTML = '';
   if (!positions.length) {
     positionsBody.innerHTML = '<tr><td class="empty" colspan="9">No positions yet.</td></tr>';
@@ -235,7 +246,7 @@ const loadInitialData = async () => {
       fetchWithToken('/.netlify/functions/get-positions'),
       fetchWithToken('/.netlify/functions/get-snapshot'),
     ]);
-    positions = positionsResponse.positions || [];
+    positions = normalizePositionsArray(positionsResponse?.positions);
     snapshot = snapshotResponse;
     renderPositions();
     renderSummary();
@@ -254,7 +265,7 @@ const savePositions = async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(positions),
     });
-    positions = saved.positions;
+    positions = normalizePositionsArray(saved?.positions);
     snapshot = saved.snapshot;
     renderPositions();
     renderSummary();
@@ -272,6 +283,7 @@ const refreshPrices = async () => {
     const refreshed = await fetchWithToken('/.netlify/functions/refresh-prices', {
       method: 'POST',
     });
+    positions = normalizePositionsArray(positions);
     snapshot = buildSnapshotFromPrices(positions, refreshed.prices || {}, refreshed.asOf);
     renderSummary();
     renderPositions();
@@ -317,6 +329,7 @@ addPositionForm.addEventListener('submit', (event) => {
     return;
   }
 
+  positions = normalizePositionsArray(positions);
   positions.push({
     symbol,
     shares,

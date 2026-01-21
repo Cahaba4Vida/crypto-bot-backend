@@ -19,7 +19,24 @@ const setSetting = async (key, value) => {
   );
 };
 
-const getPositions = async () => getSetting('positions');
+const normalizePositionsValue = (value) => {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (Array.isArray(value?.positions)) {
+    return value.positions;
+  }
+  return [];
+};
+
+const getPositions = async () => {
+  const value = await getSetting('positions');
+  const normalized = normalizePositionsValue(value);
+  if (value !== null && !Array.isArray(value)) {
+    await setSetting('positions', []);
+  }
+  return normalized;
+};
 const setPositions = async (positions) => setSetting('positions', positions);
 const getSnapshot = async () => getSetting('snapshot');
 const setSnapshot = async (snapshot) => setSetting('snapshot', snapshot);
