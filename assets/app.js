@@ -4,6 +4,12 @@ const savePortfolioButton = document.getElementById('savePortfolioButton');
 const downloadCsvButton = document.getElementById('downloadCsvButton');
 const positionsBody = document.getElementById('positionsBody');
 const addPositionForm = document.getElementById('addPositionForm');
+const importImageInput = document.getElementById('importImageInput');
+const pasteImageButton = document.getElementById('pasteImageButton');
+const parseImageButton = document.getElementById('parseImageButton');
+const importPreviewBody = document.getElementById('importPreviewBody');
+const applyImportButton = document.getElementById('applyImportButton');
+const importStatus = document.getElementById('importStatus');
 
 const totalMarketValue = document.getElementById('totalMarketValue');
 const totalCostBasis = document.getElementById('totalCostBasis');
@@ -23,6 +29,8 @@ const TOKEN_KEY = 'portfolioDashboardAdminToken';
 
 let positions = [];
 let snapshot = null;
+let importImageData = null;
+let importPreviewPositions = [];
 
 const formatCurrency = (value) => {
   if (value === null || value === undefined || Number.isNaN(value)) {
@@ -127,6 +135,44 @@ const buildSnapshotFromPrices = (positionsList, prices, asOf) => {
 const setStatus = (message, isError = false) => {
   statusMessage.textContent = message;
   statusMessage.classList.toggle('error', isError);
+};
+
+const setImportStatus = (message, isError = false) => {
+  importStatus.textContent = message;
+  importStatus.classList.toggle('error', isError);
+};
+
+const renderImportPreview = () => {
+  importPreviewBody.innerHTML = '';
+  if (!importPreviewPositions.length) {
+    importPreviewBody.innerHTML = '<tr><td class="empty" colspan="3">No import preview yet.</td></tr>';
+    applyImportButton.disabled = true;
+    return;
+  }
+  importPreviewPositions.forEach((position) => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${position.symbol}</td>
+      <td>${formatNumber(position.shares)}</td>
+      <td>${formatCurrency(position.avgCost)}</td>
+    `;
+    importPreviewBody.appendChild(row);
+  });
+  applyImportButton.disabled = false;
+};
+
+const readBlobAsDataUrl = (blob) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Unable to read image data.'));
+    reader.readAsDataURL(blob);
+  });
+
+const setImportImage = (dataUrl, sourceLabel) => {
+  importImageData = dataUrl;
+  parseImageButton.disabled = false;
+  setImportStatus(`Screenshot loaded${sourceLabel ? ` from ${sourceLabel}` : ''}.`);
 };
 
 const getToken = () => localStorage.getItem(TOKEN_KEY);
@@ -318,6 +364,61 @@ const downloadCsv = () => {
   URL.revokeObjectURL(url);
 };
 
+const parseImportImage = async () => {
+  if (!importImageData) {
+    setImportStatus('Add a screenshot file or paste an image first.', true);
+    return;
+  }
+  setImportStatus('Parsing screenshot...');
+  parseImageButton.disabled = true;
+  try {
+    const parsed = await fetchWithToken('/.netlify/functions/parse-positions-from-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64: importImageData }),
+    });
+    importPreviewPositions = Array.isArray(parsed?.positions) ? parsed.positions : [];
+    renderImportPreview();
+    if (importPreviewPositions.length) {
+      setImportStatus(`Parsed ${importPreviewPositions.length} position(s). Review and apply.`);
+    } else {
+      setImportStatus('No valid positions detected. Try a clearer screenshot.', true);
+    }
+  } catch (error) {
+    console.error('Failed to parse screenshot.', error);
+    setImportStatus('Unable to parse screenshot. Please try again.', true);
+  } finally {
+    parseImageButton.disabled = false;
+  }
+};
+
+const applyImport = () => {
+  if (!importPreviewPositions.length) {
+    setImportStatus('No imported positions to apply.', true);
+    return;
+  }
+  positions = normalizePositionsArray(positions);
+  importPreviewPositions.forEach((incoming) => {
+    const existingIndex = positions.findIndex((position) => position.symbol === incoming.symbol);
+    if (existingIndex >= 0) {
+      positions[existingIndex] = {
+        ...positions[existingIndex],
+        shares: incoming.shares,
+        avgCost: incoming.avgCost,
+      };
+    } else {
+      positions.push({ ...incoming });
+    }
+  });
+  renderPositions();
+  importPreviewPositions = [];
+  importImageData = null;
+  importImageInput.value = '';
+  parseImageButton.disabled = true;
+  renderImportPreview();
+  setImportStatus('Import applied to the positions list. Remember to save.', false);
+};
+
 addPositionForm.addEventListener('submit', (event) => {
   event.preventDefault();
   const symbol = symbolInput.value.trim().toUpperCase();
@@ -342,6 +443,64 @@ addPositionForm.addEventListener('submit', (event) => {
   renderPositions();
 });
 
+importImageInput.addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) {
+    return;
+  }
+  try {
+    const dataUrl = await readBlobAsDataUrl(file);
+    setImportImage(dataUrl, 'file upload');
+  } catch (error) {
+    console.error('Failed to read image file.', error);
+    setImportStatus('Unable to read the image file.', true);
+  }
+});
+
+pasteImageButton.addEventListener('click', async () => {
+  if (!navigator.clipboard?.read) {
+    setImportStatus('Clipboard image access is not supported in this browser.', true);
+    return;
+  }
+  try {
+    const items = await navigator.clipboard.read();
+    for (const item of items) {
+      const imageType = item.types.find((type) => type.startsWith('image/'));
+      if (imageType) {
+        const blob = await item.getType(imageType);
+        const dataUrl = await readBlobAsDataUrl(blob);
+        setImportImage(dataUrl, 'clipboard');
+        return;
+      }
+    }
+    setImportStatus('No image found in clipboard.', true);
+  } catch (error) {
+    console.error('Failed to read clipboard image.', error);
+    setImportStatus('Unable to read clipboard image.', true);
+  }
+});
+
+document.addEventListener('paste', async (event) => {
+  const items = event.clipboardData?.items || [];
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      const file = item.getAsFile();
+      if (file) {
+        try {
+          const dataUrl = await readBlobAsDataUrl(file);
+          setImportImage(dataUrl, 'paste');
+        } catch (error) {
+          console.error('Failed to read pasted image.', error);
+          setImportStatus('Unable to read pasted image.', true);
+        }
+        break;
+      }
+    }
+  }
+});
+
+parseImageButton.addEventListener('click', parseImportImage);
+applyImportButton.addEventListener('click', applyImport);
 savePortfolioButton.addEventListener('click', savePositions);
 downloadCsvButton.addEventListener('click', downloadCsv);
 refreshButton.addEventListener('click', refreshPrices);
@@ -362,3 +521,5 @@ if (!getToken()) {
 } else {
   loadInitialData();
 }
+
+renderImportPreview();
