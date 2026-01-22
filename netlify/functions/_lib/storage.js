@@ -13,9 +13,10 @@ const getSetting = async (key) => {
 const setSetting = async (key, value) => {
   const pool = getPool();
   await ensureSettingsTable();
+  const storedValue = value === null || value === undefined ? null : JSON.stringify(value);
   await pool.query(
     'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value',
-    [key, value]
+    [key, storedValue]
   );
 };
 
