@@ -10,6 +10,12 @@ const parseImageButton = document.getElementById('parseImageButton');
 const importPreviewBody = document.getElementById('importPreviewBody');
 const applyImportButton = document.getElementById('applyImportButton');
 const importStatus = document.getElementById('importStatus');
+const importTextInput = document.getElementById('importTextInput');
+const parseTextButton = document.getElementById('parseTextButton');
+const bondForm = document.getElementById('bondForm');
+const bondTotalCostInput = document.getElementById('bondTotalCostInput');
+const bondCouponRateInput = document.getElementById('bondCouponRateInput');
+const bondStatus = document.getElementById('bondStatus');
 
 const totalMarketValue = document.getElementById('totalMarketValue');
 const totalCostBasis = document.getElementById('totalCostBasis');
@@ -26,11 +32,13 @@ const sharesInput = document.getElementById('sharesInput');
 const avgCostInput = document.getElementById('avgCostInput');
 
 const TOKEN_KEY = 'portfolioDashboardAdminToken';
+const BOND_STORAGE_KEY = 'portfolioDashboardBondInfo';
 
 let positions = [];
 let snapshot = null;
 let importImageData = null;
 let importPreviewPositions = [];
+const collapsedPositions = new Set();
 
 const formatCurrency = (value) => {
   if (value === null || value === undefined || Number.isNaN(value)) {
@@ -142,6 +150,11 @@ const setImportStatus = (message, isError = false) => {
   importStatus.classList.toggle('error', isError);
 };
 
+const setBondStatus = (message, isError = false) => {
+  bondStatus.textContent = message;
+  bondStatus.classList.toggle('error', isError);
+};
+
 const renderImportPreview = () => {
   importPreviewBody.innerHTML = '';
   if (!importPreviewPositions.length) {
@@ -149,12 +162,18 @@ const renderImportPreview = () => {
     applyImportButton.disabled = true;
     return;
   }
-  importPreviewPositions.forEach((position) => {
+  importPreviewPositions.forEach((position, index) => {
     const row = document.createElement('tr');
     row.innerHTML = `
-      <td>${position.symbol}</td>
-      <td>${formatNumber(position.shares)}</td>
-      <td>${formatCurrency(position.avgCost)}</td>
+      <td>
+        <input type="text" value="${position.symbol ?? ''}" data-field="symbol" data-index="${index}" />
+      </td>
+      <td>
+        <input type="number" step="0.0001" value="${position.shares ?? ''}" data-field="shares" data-index="${index}" />
+      </td>
+      <td>
+        <input type="number" step="0.01" value="${position.avgCost ?? ''}" data-field="avgCost" data-index="${index}" />
+      </td>
     `;
     importPreviewBody.appendChild(row);
   });
@@ -242,20 +261,45 @@ const renderPositions = () => {
     return;
   }
   positions.forEach((position, index) => {
-    const row = document.createElement('tr');
     const computed = snapshot?.positions?.find((item) => item.symbol === position.symbol);
-    row.innerHTML = `
+    const isCollapsed = collapsedPositions.has(position.symbol);
+    const summaryRow = document.createElement('tr');
+    summaryRow.classList.add('position-summary');
+    summaryRow.innerHTML = `
       <td>${position.symbol}</td>
-      <td><input type="number" step="0.0001" value="${position.shares}" data-field="shares" data-index="${index}" /></td>
-      <td><input type="number" step="0.01" value="${position.avgCost ?? ''}" data-field="avgCost" data-index="${index}" /></td>
+      <td>${formatNumber(position.shares)}</td>
+      <td>${formatCurrency(position.avgCost)}</td>
       <td>${formatCurrency(computed?.costBasis ?? position.costBasis)}</td>
       <td>${formatCurrency(computed?.lastPrice)}</td>
       <td>${formatCurrency(computed?.marketValue)}</td>
       <td>${formatCurrency(computed?.unrealizedPnL)}</td>
       <td>${formatPercent(computed?.unrealizedPnLPct)}</td>
-      <td><button class="action-btn" data-action="delete" data-index="${index}">Delete</button></td>
+      <td>
+        <button class="action-btn toggle-btn" data-action="toggle" data-symbol="${position.symbol}" data-index="${index}" aria-expanded="${!isCollapsed}">
+          ${isCollapsed ? 'Expand' : 'Collapse'}
+        </button>
+      </td>
     `;
-    positionsBody.appendChild(row);
+    const detailRow = document.createElement('tr');
+    detailRow.classList.add('position-details');
+    detailRow.hidden = isCollapsed;
+    detailRow.innerHTML = `
+      <td colspan="9">
+        <div class="position-details-grid">
+          <label>
+            Shares
+            <input type="number" step="0.0001" value="${position.shares}" data-field="shares" data-index="${index}" />
+          </label>
+          <label>
+            Avg Cost
+            <input type="number" step="0.01" value="${position.avgCost ?? ''}" data-field="avgCost" data-index="${index}" />
+          </label>
+          <button class="action-btn danger" data-action="delete" data-index="${index}">Delete Position</button>
+        </div>
+      </td>
+    `;
+    positionsBody.appendChild(summaryRow);
+    positionsBody.appendChild(detailRow);
   });
 };
 
@@ -279,8 +323,23 @@ positionsBody.addEventListener('input', (event) => {
 positionsBody.addEventListener('click', (event) => {
   const target = event.target;
   if (!(target instanceof HTMLButtonElement)) return;
+  if (target.dataset.action === 'toggle') {
+    const symbol = target.dataset.symbol;
+    if (symbol) {
+      if (collapsedPositions.has(symbol)) {
+        collapsedPositions.delete(symbol);
+      } else {
+        collapsedPositions.add(symbol);
+      }
+      renderPositions();
+    }
+  }
   if (target.dataset.action === 'delete') {
     const index = Number(target.dataset.index);
+    const symbol = positions[index]?.symbol;
+    if (symbol) {
+      collapsedPositions.delete(symbol);
+    }
     positions.splice(index, 1);
     renderPositions();
   }
@@ -343,9 +402,9 @@ const refreshPrices = async () => {
   }
 };
 
-const downloadCsv = () => {
+const openChatGptPrompt = () => {
   if (!positions.length) {
-    setStatus('No positions available to export.', true);
+    setStatus('No positions available to share.', true);
     return;
   }
   const header = 'SYMBOL,SHARES,AVGCOST';
@@ -354,15 +413,9 @@ const downloadCsv = () => {
     return `${position.symbol},${position.shares},${avgCost}`;
   });
   const csvContent = [header, ...rows].join('\n');
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'portfolio-positions.csv';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  const prompt = `Here are my portfolio positions in CSV format. Please import and analyze them:\n\n${csvContent}`;
+  const chatGptUrl = `https://chat.openai.com/?model=gpt-4o&prompt=${encodeURIComponent(prompt)}`;
+  window.open(chatGptUrl, '_blank', 'noopener');
 };
 
 const parseImportImage = async () => {
@@ -396,6 +449,38 @@ const parseImportImage = async () => {
   }
 };
 
+const parseImportText = async () => {
+  const text = importTextInput.value.trim();
+  if (!text) {
+    setImportStatus('Paste text to import first.', true);
+    return;
+  }
+  setImportStatus('Parsing text import...');
+  parseTextButton.disabled = true;
+  try {
+    const parsed = await fetchWithToken('/.netlify/functions/parse-positions-from-text', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    importPreviewPositions = Array.isArray(parsed?.positions) ? parsed.positions : [];
+    renderImportPreview();
+    if (importPreviewPositions.length) {
+      setImportStatus(`Parsed ${importPreviewPositions.length} position(s). Review and apply.`);
+    } else {
+      setImportStatus('No valid positions detected from the text.', true);
+    }
+  } catch (error) {
+    console.error('Failed to parse text import.', error);
+    const message = error instanceof Error && error.message
+      ? error.message
+      : 'Unable to parse text import. Please try again.';
+    setImportStatus(message, true);
+  } finally {
+    parseTextButton.disabled = false;
+  }
+};
+
 const applyImport = () => {
   if (!importPreviewPositions.length) {
     setImportStatus('No imported positions to apply.', true);
@@ -403,24 +488,26 @@ const applyImport = () => {
   }
   positions = normalizePositionsArray(positions);
   importPreviewPositions.forEach((incoming) => {
-    const existingIndex = positions.findIndex((position) => position.symbol === incoming.symbol);
-    if (existingIndex >= 0) {
-      positions[existingIndex] = {
-        ...positions[existingIndex],
-        shares: incoming.shares,
-        avgCost: incoming.avgCost,
-      };
-    } else {
-      positions.push({ ...incoming });
-    }
+    positions.push({ ...incoming });
   });
   renderPositions();
   importPreviewPositions = [];
   importImageData = null;
   importImageInput.value = '';
+  importTextInput.value = '';
   parseImageButton.disabled = true;
   renderImportPreview();
   setImportStatus('Import applied to the positions list. Remember to save.', false);
+};
+
+const updateImportPreviewField = (index, field, value) => {
+  const updated = { ...importPreviewPositions[index] };
+  if (field === 'symbol') {
+    updated.symbol = value.trim().toUpperCase();
+  } else {
+    updated[field] = value === '' ? null : Number(value);
+  }
+  importPreviewPositions[index] = updated;
 };
 
 addPositionForm.addEventListener('submit', (event) => {
@@ -445,6 +532,19 @@ addPositionForm.addEventListener('submit', (event) => {
   sharesInput.value = '';
   avgCostInput.value = '';
   renderPositions();
+});
+
+importPreviewBody.addEventListener('input', (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) return;
+  const index = Number(target.dataset.index);
+  const field = target.dataset.field;
+  if (!Number.isNaN(index) && field) {
+    updateImportPreviewField(index, field, target.value);
+    if (field === 'symbol') {
+      target.value = importPreviewPositions[index].symbol || '';
+    }
+  }
 });
 
 importImageInput.addEventListener('change', async (event) => {
@@ -504,10 +604,32 @@ document.addEventListener('paste', async (event) => {
 });
 
 parseImageButton.addEventListener('click', parseImportImage);
+parseTextButton.addEventListener('click', parseImportText);
 applyImportButton.addEventListener('click', applyImport);
 savePortfolioButton.addEventListener('click', savePositions);
-downloadCsvButton.addEventListener('click', downloadCsv);
+downloadCsvButton.addEventListener('click', openChatGptPrompt);
 refreshButton.addEventListener('click', refreshPrices);
+
+bondForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const totalCost = Number(bondTotalCostInput.value);
+  const couponRate = Number(bondCouponRateInput.value);
+  if (Number.isNaN(totalCost) || totalCost <= 0) {
+    setBondStatus('Enter a valid total cost for the bond.', true);
+    return;
+  }
+  if (Number.isNaN(couponRate) || couponRate < 0) {
+    setBondStatus('Enter a valid coupon rate (0 or greater).', true);
+    return;
+  }
+  const payload = {
+    totalCost,
+    couponRate,
+    updatedAt: new Date().toISOString(),
+  };
+  localStorage.setItem(BOND_STORAGE_KEY, JSON.stringify(payload));
+  setBondStatus('Bond details saved locally.', false);
+});
 
 saveTokenButton.addEventListener('click', () => {
   const token = tokenInput.value.trim();
@@ -520,6 +642,26 @@ saveTokenButton.addEventListener('click', () => {
   loadInitialData();
 });
 
+const loadBondInfo = () => {
+  const stored = localStorage.getItem(BOND_STORAGE_KEY);
+  if (!stored) {
+    return;
+  }
+  try {
+    const parsed = JSON.parse(stored);
+    if (typeof parsed?.totalCost === 'number') {
+      bondTotalCostInput.value = parsed.totalCost;
+    }
+    if (typeof parsed?.couponRate === 'number') {
+      bondCouponRateInput.value = parsed.couponRate;
+    }
+    setBondStatus('Loaded saved bond details.', false);
+  } catch (error) {
+    console.error('Failed to load bond info.', error);
+    setBondStatus('Unable to load saved bond details.', true);
+  }
+};
+
 if (!getToken()) {
   showTokenModal();
 } else {
@@ -527,3 +669,4 @@ if (!getToken()) {
 }
 
 renderImportPreview();
+loadBondInfo();
