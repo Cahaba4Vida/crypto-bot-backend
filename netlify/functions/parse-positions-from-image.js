@@ -109,141 +109,125 @@ const extractOpenAiPayload = (responseJson) => {
 };
 
 exports.handler = async (event) => {
-  const auth = requireAdmin(event);
-  if (!auth.ok) {
-    return buildResponse(auth.statusCode, auth.body);
-  }
-
-  if (!process.env.OPENAI_API_KEY) {
-    return buildResponse(500, { error: 'OPENAI_API_KEY is not configured.' });
-  }
-
-  let payload = null;
   try {
-    payload = JSON.parse(event.body || 'null');
-  } catch (parseError) {
-    return buildResponse(400, { error: 'Invalid JSON payload.' });
-  }
+    const auth = requireAdmin(event);
+    if (!auth.ok) {
+      return buildResponse(auth.statusCode, auth.body);
+    }
 
-  const imagePayload = extractImagePayload(payload?.imageBase64);
-  if (!imagePayload) {
-    return buildResponse(400, { error: 'imageBase64 is required and must be base64-encoded.' });
-  }
+    if (!process.env.OPENAI_API_KEY) {
+      return buildResponse(500, { error: 'OPENAI_API_KEY is not configured.' });
+    }
 
-  const prompt = [
-    'Extract positions from the screenshot.',
-    'Return JSON only with schema: {"positions":[{"symbol":"STRING","shares":NUMBER,"avgCost":NUMBER}]}',
-    'Symbol must be uppercase ticker, allow dot/dash tickers like BRK.B.',
-    'shares can be fractional.',
-    'avgCost is average cost per share (not cost basis).',
-    'If any data is missing, omit the position instead of guessing.',
-  ].join(' ');
+    let payload = null;
+    try {
+      payload = JSON.parse(event.body || 'null');
+    } catch (parseError) {
+      return buildResponse(400, { error: 'Invalid JSON payload.' });
+    }
 
-  const requestBody = {
-    model: 'gpt-4.1-mini',
-    temperature: 0,
-    response_format: {
-      type: 'json_schema',
-      json_schema: {
-        name: 'positions_schema',
-        schema: {
-          type: 'object',
-          properties: {
-            positions: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  symbol: { type: 'string' },
-                  shares: { type: 'number' },
-                  avgCost: { type: 'number' },
-                },
-                required: ['symbol', 'shares', 'avgCost'],
-                additionalProperties: false,
-              },
-            },
-          },
-          required: ['positions'],
-          additionalProperties: false,
+    const imagePayload = extractImagePayload(payload?.imageBase64);
+    if (!imagePayload) {
+      return buildResponse(400, { error: 'imageBase64 is required and must be base64-encoded.' });
+    }
+
+    const prompt = [
+      'Extract positions from the screenshot.',
+      'Return JSON only with schema: {"positions":[{"symbol":"STRING","shares":NUMBER,"avgCost":NUMBER}]}',
+      'Symbol must be uppercase ticker, allow dot/dash tickers like BRK.B.',
+      'shares can be fractional.',
+      'avgCost is average cost per share (not cost basis).',
+      'If any data is missing, omit the position instead of guessing.',
+    ].join(' ');
+
+    const requestBody = {
+      model: 'gpt-4.1-mini',
+      temperature: 0,
+      text: {
+        format: {
+          type: 'json_object',
         },
       },
-    },
-    input: [
-      {
-        role: 'system',
-        content: 'You are a data extraction assistant. Return JSON only with the required schema.',
-      },
-      {
-        role: 'user',
-        content: [
-          { type: 'input_text', text: prompt },
-          {
-            type: 'input_image',
-            image_url: `data:${imagePayload.mimeType};base64,${imagePayload.base64}`,
-          },
-        ],
-      },
-    ],
-  };
+      input: [
+        {
+          role: 'system',
+          content: 'You are a data extraction assistant. Return JSON only with the required schema.',
+        },
+        {
+          role: 'user',
+          content: [
+            { type: 'input_text', text: prompt },
+            {
+              type: 'input_image',
+              image_url: `data:${imagePayload.mimeType};base64,${imagePayload.base64}`,
+            },
+          ],
+        },
+      ],
+    };
 
-  let response = null;
-  try {
-    response = await fetch(OPENAI_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    });
-  } catch (error) {
-    console.error('Failed to reach OpenAI API.', error);
-    return buildResponse(502, { error: 'Failed to reach OpenAI API.' });
-  }
-
-  let responseJson = null;
-  try {
-    responseJson = await response.json();
-  } catch (error) {
-    return buildResponse(502, { error: 'Invalid response from OpenAI API.' });
-  }
-
-  if (!response.ok) {
-    return buildResponse(502, {
-      error: 'OpenAI API returned an error.',
-      status: response.status,
-      details: responseJson?.error?.message || 'Unknown error.',
-    });
-  }
-
-  const openAiPayload = extractOpenAiPayload(responseJson);
-  if (!openAiPayload) {
-    return buildResponse(502, { error: 'OpenAI response missing output payload.' });
-  }
-
-  let parsed = null;
-  if (openAiPayload.type === 'json') {
-    parsed = openAiPayload.value;
-  } else {
-    const outputText = openAiPayload.value;
+    let response = null;
     try {
-      parsed = JSON.parse(outputText);
+      response = await fetch(OPENAI_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
     } catch (error) {
-      const extractedJson = extractJsonPayload(outputText);
-      if (extractedJson) {
-        try {
-          parsed = JSON.parse(extractedJson);
-        } catch (innerError) {
+      console.error('Failed to reach OpenAI API.', error);
+      return buildResponse(502, { error: 'Failed to reach OpenAI API.' });
+    }
+
+    let responseJson = null;
+    try {
+      responseJson = await response.json();
+    } catch (error) {
+      return buildResponse(502, { error: 'Invalid response from OpenAI API.' });
+    }
+
+    if (!response.ok) {
+      return buildResponse(502, {
+        error: 'OpenAI API returned an error.',
+        status: response.status,
+        details: responseJson?.error?.message || 'Unknown error.',
+      });
+    }
+
+    const openAiPayload = extractOpenAiPayload(responseJson);
+    if (!openAiPayload) {
+      return buildResponse(502, { error: 'OpenAI response missing output payload.' });
+    }
+
+    let parsed = null;
+    if (openAiPayload.type === 'json') {
+      parsed = openAiPayload.value;
+    } else {
+      const outputText = openAiPayload.value;
+      try {
+        parsed = JSON.parse(outputText);
+      } catch (error) {
+        const extractedJson = extractJsonPayload(outputText);
+        if (extractedJson) {
+          try {
+            parsed = JSON.parse(extractedJson);
+          } catch (innerError) {
+            const excerpt = outputText.slice(0, 200);
+            return buildResponse(502, { error: 'Invalid JSON from OpenAI.', excerpt });
+          }
+        } else {
           const excerpt = outputText.slice(0, 200);
           return buildResponse(502, { error: 'Invalid JSON from OpenAI.', excerpt });
         }
-      } else {
-        const excerpt = outputText.slice(0, 200);
-        return buildResponse(502, { error: 'Invalid JSON from OpenAI.', excerpt });
       }
     }
-  }
 
-  const normalizedPositions = normalizePositions(parsed?.positions);
-  return buildResponse(200, { positions: normalizedPositions });
+    const normalizedPositions = normalizePositions(parsed?.positions);
+    return buildResponse(200, { positions: normalizedPositions });
+  } catch (error) {
+    console.error('Unexpected error parsing screenshot.', error);
+    return buildResponse(500, { error: 'Unexpected error parsing screenshot.' });
+  }
 };
