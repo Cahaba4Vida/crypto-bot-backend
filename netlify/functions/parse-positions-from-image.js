@@ -35,6 +35,23 @@ const sanitizeSymbol = (value) => {
   return value.toUpperCase().replace(/[^A-Z0-9.-]/g, '');
 };
 
+const extractJsonPayload = (value) => {
+  if (!value || typeof value !== 'string') {
+    return null;
+  }
+  const fencedMatch = value.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fencedMatch) {
+    return fencedMatch[1].trim();
+  }
+  const trimmed = value.trim();
+  const firstBrace = trimmed.indexOf('{');
+  const lastBrace = trimmed.lastIndexOf('}');
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+    return null;
+  }
+  return trimmed.slice(firstBrace, lastBrace + 1);
+};
+
 const normalizePositions = (positions) => {
   if (!Array.isArray(positions)) {
     return [];
@@ -55,6 +72,40 @@ const normalizePositions = (positions) => {
     acc.push({ symbol, shares, avgCost });
     return acc;
   }, []);
+};
+
+const extractOpenAiPayload = (responseJson) => {
+  if (responseJson && typeof responseJson.output_text === 'string' && responseJson.output_text.trim()) {
+    return { type: 'text', value: responseJson.output_text };
+  }
+
+  if (!Array.isArray(responseJson?.output)) {
+    return null;
+  }
+
+  const textParts = [];
+  for (const output of responseJson.output) {
+    if (!output || !Array.isArray(output.content)) {
+      continue;
+    }
+    for (const content of output.content) {
+      if (!content || typeof content !== 'object') {
+        continue;
+      }
+      if (content.type === 'output_json' && content.json) {
+        return { type: 'json', value: content.json };
+      }
+      if (content.type === 'output_text' && typeof content.text === 'string') {
+        textParts.push(content.text);
+      }
+    }
+  }
+
+  if (textParts.length > 0) {
+    return { type: 'text', value: textParts.join('\n') };
+  }
+
+  return null;
 };
 
 exports.handler = async (event) => {
@@ -91,6 +142,32 @@ exports.handler = async (event) => {
   const requestBody = {
     model: 'gpt-4.1-mini',
     temperature: 0,
+    response_format: {
+      type: 'json_schema',
+      json_schema: {
+        name: 'positions_schema',
+        schema: {
+          type: 'object',
+          properties: {
+            positions: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  symbol: { type: 'string' },
+                  shares: { type: 'number' },
+                  avgCost: { type: 'number' },
+                },
+                required: ['symbol', 'shares', 'avgCost'],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ['positions'],
+          additionalProperties: false,
+        },
+      },
+    },
     input: [
       {
         role: 'system',
@@ -139,17 +216,32 @@ exports.handler = async (event) => {
     });
   }
 
-  const outputText = responseJson?.output_text;
-  if (!outputText || typeof outputText !== 'string') {
-    return buildResponse(502, { error: 'OpenAI response missing output_text.' });
+  const openAiPayload = extractOpenAiPayload(responseJson);
+  if (!openAiPayload) {
+    return buildResponse(502, { error: 'OpenAI response missing output payload.' });
   }
 
   let parsed = null;
-  try {
-    parsed = JSON.parse(outputText);
-  } catch (error) {
-    const excerpt = outputText.slice(0, 200);
-    return buildResponse(502, { error: 'Invalid JSON from OpenAI.', excerpt });
+  if (openAiPayload.type === 'json') {
+    parsed = openAiPayload.value;
+  } else {
+    const outputText = openAiPayload.value;
+    try {
+      parsed = JSON.parse(outputText);
+    } catch (error) {
+      const extractedJson = extractJsonPayload(outputText);
+      if (extractedJson) {
+        try {
+          parsed = JSON.parse(extractedJson);
+        } catch (innerError) {
+          const excerpt = outputText.slice(0, 200);
+          return buildResponse(502, { error: 'Invalid JSON from OpenAI.', excerpt });
+        }
+      } else {
+        const excerpt = outputText.slice(0, 200);
+        return buildResponse(502, { error: 'Invalid JSON from OpenAI.', excerpt });
+      }
+    }
   }
 
   const normalizedPositions = normalizePositions(parsed?.positions);
