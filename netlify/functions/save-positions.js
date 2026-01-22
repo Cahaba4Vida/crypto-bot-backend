@@ -10,11 +10,41 @@ const buildResponse = (statusCode, body) => ({
   },
 });
 
+const validatePositions = (positions) => {
+  const invalidIndexes = [];
+  positions.forEach((position, index) => {
+    if (!position || typeof position !== 'object') {
+      invalidIndexes.push(index);
+      return;
+    }
+    const symbolOk = typeof position.symbol === 'string' && position.symbol.trim().length > 0;
+    const sharesOk =
+      typeof position.shares === 'number' && Number.isFinite(position.shares) && position.shares > 0;
+    const avgCostOk =
+      position.avgCost === null ||
+      (typeof position.avgCost === 'number' && Number.isFinite(position.avgCost));
+    if (!symbolOk || !sharesOk || !avgCostOk) {
+      invalidIndexes.push(index);
+    }
+  });
+  return invalidIndexes;
+};
+
+const summarizePositions = (positions) => ({
+  count: Array.isArray(positions) ? positions.length : 0,
+  symbols: Array.isArray(positions)
+    ? [...new Set(positions.map((position) => position.symbol).filter(Boolean))].slice(0, 10)
+    : [],
+});
+
 exports.handler = async (event) => {
   const auth = requireAdmin(event);
   if (!auth.ok) {
     return buildResponse(auth.statusCode, auth.body);
   }
+
+  let positions = null;
+  let positionsSummary = null;
 
   try {
     let incoming = null;
@@ -41,7 +71,16 @@ exports.handler = async (event) => {
       });
     }
 
-    const positions = normalizePositions(payload);
+    const invalidIndexes = validatePositions(payload);
+    if (invalidIndexes.length > 0) {
+      return buildResponse(400, {
+        error: 'Each position must include a symbol, shares, and avgCost.',
+        invalidCount: invalidIndexes.length,
+      });
+    }
+
+    positions = normalizePositions(payload);
+    positionsSummary = summarizePositions(positions);
     await setPositions(positions);
     const meta = await getMeta();
     const snapshot = buildSnapshot(positions, {}, meta || {});
@@ -52,7 +91,13 @@ exports.handler = async (event) => {
     if (error?.missing) {
       return buildResponse(500, { error: 'Missing database env var', missing: error.missing });
     }
-    console.error('Failed to save positions.', error);
+    console.error('Failed to save positions.', {
+      code: error?.code,
+      message: error?.message,
+      storedType: typeof positions,
+      storedIsArray: Array.isArray(positions),
+      storedSummary: positionsSummary || summarizePositions(positions),
+    });
     return buildResponse(500, { error: 'Unable to save positions.' });
   }
 };
