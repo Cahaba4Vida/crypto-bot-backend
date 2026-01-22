@@ -159,6 +159,10 @@ button.ghost {
   min-width: 900px;
 }
 
+.table-wrapper input {
+  width: 100%;
+}
+
 th,
  td {
   text-align: left;
@@ -193,6 +197,10 @@ tr:last-child td {
   align-items: end;
 }
 
+.import-text-controls {
+  align-items: start;
+}
+
 .import-actions {
   margin-top: 16px;
 }
@@ -202,7 +210,16 @@ tr:last-child td {
   min-height: 18px;
 }
 
+.bond-status {
+  margin: 12px 0 0;
+  min-height: 18px;
+}
+
 .import-status.error {
+  color: #991b1b;
+}
+
+.bond-status.error {
   color: #991b1b;
 }
 
@@ -227,6 +244,15 @@ input {
   font-size: 14px;
 }
 
+textarea {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  font-size: 14px;
+  resize: vertical;
+  min-height: 90px;
+}
+
 .empty {
   text-align: center;
   color: #9ca3af;
@@ -240,6 +266,33 @@ input {
   border: none;
   cursor: pointer;
   font-weight: 600;
+}
+
+.action-btn.danger {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.toggle-btn {
+  background: #eef2ff;
+  color: #1d4ed8;
+}
+
+.position-details {
+  background: #f9fafb;
+}
+
+.position-details td {
+  border-bottom: none;
+  padding-top: 0;
+}
+
+.position-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  padding: 16px 0 4px;
+  align-items: end;
 }
 
 .modal {

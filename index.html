@@ -27,7 +27,7 @@
         </div>
         <div class="header-actions">
           <button id="savePortfolioButton" class="ghost">Save Portfolio</button>
-          <button id="downloadCsvButton" class="ghost">Download CSV</button>
+          <button id="downloadCsvButton" class="ghost">Open in ChatGPT</button>
           <button id="refreshButton" class="primary">Refresh Prices</button>
         </div>
       </header>
@@ -60,7 +60,7 @@
       <section class="table-section">
         <div class="section-header">
           <h2>Positions</h2>
-          <p class="muted">Add, edit, or delete positions. Save before refreshing prices.</p>
+          <p class="muted">Add positions, then expand each row to edit or delete.</p>
         </div>
         <div class="table-wrapper">
           <table>
@@ -85,7 +85,7 @@
       <section class="table-section">
         <div class="section-header">
           <h2>Import from Screenshot</h2>
-          <p class="muted">Upload or paste a screenshot to extract symbols, shares, and avg cost.</p>
+          <p class="muted">Upload or paste a screenshot, then edit the parsed values before applying.</p>
         </div>
         <div class="import-controls">
           <label>
@@ -94,6 +94,13 @@
           </label>
           <button id="pasteImageButton" class="ghost" type="button">Paste from Clipboard</button>
           <button id="parseImageButton" class="primary" type="button" disabled>Parse Screenshot</button>
+        </div>
+        <div class="import-controls import-text-controls">
+          <label>
+            Paste Text
+            <textarea id="importTextInput" rows="4" placeholder="Paste a text export of your positions here"></textarea>
+          </label>
+          <button id="parseTextButton" class="primary" type="button">Import from Text</button>
         </div>
         <p id="importStatus" class="import-status muted"></p>
         <div class="table-wrapper">
@@ -133,6 +140,25 @@
           </label>
           <button type="submit" class="primary">Add Position</button>
         </form>
+      </section>
+
+      <section class="table-section">
+        <div class="section-header">
+          <h2>Add Bond</h2>
+          <p class="muted">Track a bond by total cost and coupon rate.</p>
+        </div>
+        <form id="bondForm" class="form-grid">
+          <label>
+            Total Cost
+            <input id="bondTotalCostInput" type="number" step="0.01" placeholder="10000.00" required />
+          </label>
+          <label>
+            Coupon Rate (%)
+            <input id="bondCouponRateInput" type="number" step="0.01" placeholder="5.25" required />
+          </label>
+          <button type="submit" class="primary">Save Bond</button>
+        </form>
+        <p id="bondStatus" class="bond-status muted"></p>
       </section>
     </main>
 
