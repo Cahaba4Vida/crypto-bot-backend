@@ -142,29 +142,31 @@ exports.handler = async (event) => {
   const requestBody = {
     model: 'gpt-4.1-mini',
     temperature: 0,
-    response_format: {
-      type: 'json_schema',
-      json_schema: {
-        name: 'positions_schema',
-        schema: {
-          type: 'object',
-          properties: {
-            positions: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  symbol: { type: 'string' },
-                  shares: { type: 'number' },
-                  avgCost: { type: 'number' },
+    text: {
+      format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'positions_schema',
+          schema: {
+            type: 'object',
+            properties: {
+              positions: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    symbol: { type: 'string' },
+                    shares: { type: 'number' },
+                    avgCost: { type: 'number' },
+                  },
+                  required: ['symbol', 'shares', 'avgCost'],
+                  additionalProperties: false,
                 },
-                required: ['symbol', 'shares', 'avgCost'],
-                additionalProperties: false,
               },
             },
+            required: ['positions'],
+            additionalProperties: false,
           },
-          required: ['positions'],
-          additionalProperties: false,
         },
       },
     },
