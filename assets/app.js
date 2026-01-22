@@ -3,6 +3,9 @@ const refreshButton = document.getElementById('refreshButton');
 const savePortfolioButton = document.getElementById('savePortfolioButton');
 const downloadCsvButton = document.getElementById('downloadCsvButton');
 const positionsBody = document.getElementById('positionsBody');
+const positionsTableWrapper = document.getElementById('positionsTableWrapper');
+const togglePositionsButton = document.getElementById('togglePositionsButton');
+const deleteAllPositionsButton = document.getElementById('deleteAllPositionsButton');
 const addPositionForm = document.getElementById('addPositionForm');
 const importImageInput = document.getElementById('importImageInput');
 const pasteImageButton = document.getElementById('pasteImageButton');
@@ -39,6 +42,7 @@ let snapshot = null;
 let importImageData = null;
 let importPreviewPositions = [];
 const collapsedPositions = new Set();
+let positionsSectionCollapsed = false;
 
 const formatCurrency = (value) => {
   if (value === null || value === undefined || Number.isNaN(value)) {
@@ -253,11 +257,29 @@ const renderSummary = () => {
     : '--';
 };
 
+const setPositionsSectionCollapsed = (collapsed) => {
+  positionsSectionCollapsed = collapsed;
+  if (positionsTableWrapper) {
+    positionsTableWrapper.hidden = collapsed;
+  }
+  if (togglePositionsButton) {
+    togglePositionsButton.textContent = collapsed ? 'Expand Positions' : 'Collapse Positions';
+    togglePositionsButton.setAttribute('aria-expanded', String(!collapsed));
+  }
+};
+
+const updatePositionsActionsState = () => {
+  if (deleteAllPositionsButton) {
+    deleteAllPositionsButton.disabled = !positions.length;
+  }
+};
+
 const renderPositions = () => {
   positions = normalizePositionsArray(positions);
   positionsBody.innerHTML = '';
   if (!positions.length) {
     positionsBody.innerHTML = '<tr><td class="empty" colspan="9">No positions yet.</td></tr>';
+    updatePositionsActionsState();
     return;
   }
   positions.forEach((position, index) => {
@@ -301,6 +323,7 @@ const renderPositions = () => {
     positionsBody.appendChild(summaryRow);
     positionsBody.appendChild(detailRow);
   });
+  updatePositionsActionsState();
 };
 
 const updatePositionField = (index, field, value) => {
@@ -344,6 +367,31 @@ positionsBody.addEventListener('click', (event) => {
     renderPositions();
   }
 });
+
+if (togglePositionsButton) {
+  togglePositionsButton.addEventListener('click', () => {
+    setPositionsSectionCollapsed(!positionsSectionCollapsed);
+  });
+}
+
+if (deleteAllPositionsButton) {
+  deleteAllPositionsButton.addEventListener('click', () => {
+    if (!positions.length) {
+      setStatus('No positions to delete.', true);
+      return;
+    }
+    const confirmed = window.confirm('Delete all positions? This cannot be undone.');
+    if (!confirmed) {
+      return;
+    }
+    positions = [];
+    snapshot = null;
+    collapsedPositions.clear();
+    renderPositions();
+    renderSummary();
+    setStatus('All positions deleted. Remember to save.', false);
+  });
+}
 
 const loadInitialData = async () => {
   setStatus('Loading portfolio...');
