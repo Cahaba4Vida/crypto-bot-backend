@@ -84,6 +84,37 @@
 
       <section class="table-section">
         <div class="section-header">
+          <h2>Import from Screenshot</h2>
+          <p class="muted">Upload or paste a screenshot to extract symbols, shares, and avg cost.</p>
+        </div>
+        <div class="import-controls">
+          <label>
+            Screenshot
+            <input id="importImageInput" type="file" accept="image/*" />
+          </label>
+          <button id="pasteImageButton" class="ghost" type="button">Paste from Clipboard</button>
+          <button id="parseImageButton" class="primary" type="button" disabled>Parse Screenshot</button>
+        </div>
+        <p id="importStatus" class="import-status muted"></p>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Shares</th>
+                <th>Avg Cost</th>
+              </tr>
+            </thead>
+            <tbody id="importPreviewBody"></tbody>
+          </table>
+        </div>
+        <div class="import-actions">
+          <button id="applyImportButton" class="primary" type="button" disabled>Apply Import</button>
+        </div>
+      </section>
+
+      <section class="table-section">
+        <div class="section-header">
           <h2>Add Position</h2>
           <p class="muted">Provide a symbol, shares, and avg cost to compute the cost basis.</p>
         </div>
