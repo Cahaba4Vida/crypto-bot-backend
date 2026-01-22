@@ -22,7 +22,7 @@ netlify.toml
 
 Set the following in **Netlify → Site settings → Environment variables**:
 
-- `ADMIN_TOKEN` (required)
+- `ADMIN_TOKEN` (required, or set a context-specific token like `ADMIN_TOKEN_PRODUCTION`, `ADMIN_TOKEN_DEPLOY_PREVIEW`, or `ADMIN_TOKEN_BRANCH_DEPLOY`)
 - `DATABASE_URL` (optional alias for Neon connection string)
 - `NETLIFY_DATABASE_URL` (required with Netlify Neon integration)
 - `NETLIFY_DATABASE_URL_UNPOOLED` (optional fallback for unpooled connections)
@@ -76,7 +76,7 @@ The trade price (`p`) is used as `lastPrice` for market value calculations.
 
 ## Troubleshooting
 
-- **Unauthorized responses**: Ensure the `ADMIN_TOKEN` in Netlify matches the token stored in the browser.
+- **Unauthorized responses**: Ensure the `ADMIN_TOKEN` (or the context-specific `ADMIN_TOKEN_*`) in Netlify matches the token stored in the browser.
 - **Alpaca API errors**: Verify `ALPACA_API_KEY` and `ALPACA_API_SECRET` are correct and the data base URL is reachable.
 - **No prices returned**: Confirm the symbols are valid US equities or supported crypto tickers (e.g., `SOL` or `SOL/USD`).
 
