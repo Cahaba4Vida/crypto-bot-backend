@@ -145,22 +145,18 @@ exports.handler = async (event) => {
     text: {
       format: {
         type: 'json_schema',
-        json_schema: {
-          name: 'positions_schema',
-          schema: {
-            type: 'object',
-            properties: {
-              positions: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    symbol: { type: 'string' },
-                    shares: { type: 'number' },
-                    avgCost: { type: 'number' },
-                  },
-                  required: ['symbol', 'shares', 'avgCost'],
-                  additionalProperties: false,
+        name: 'positions_schema',
+        schema: {
+          type: 'object',
+          properties: {
+            positions: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  symbol: { type: 'string' },
+                  shares: { type: 'number' },
+                  avgCost: { type: 'number' },
                 },
               },
             },
