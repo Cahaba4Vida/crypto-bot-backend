@@ -57,12 +57,20 @@
         </article>
       </section>
 
-      <section class="table-section">
+      <section class="table-section" id="positionsSection">
         <div class="section-header">
-          <h2>Positions</h2>
-          <p class="muted">Add positions, then expand each row to edit or delete.</p>
+          <div class="section-header-main">
+            <h2>Positions</h2>
+            <p class="muted">Add positions, then expand each row to edit or delete.</p>
+          </div>
+          <div class="section-actions">
+            <button id="togglePositionsButton" class="ghost" type="button" aria-expanded="true" aria-controls="positionsTableWrapper">
+              Collapse Positions
+            </button>
+            <button id="deleteAllPositionsButton" class="danger" type="button">Delete All</button>
+          </div>
         </div>
-        <div class="table-wrapper">
+        <div class="table-wrapper" id="positionsTableWrapper">
           <table>
             <thead>
               <tr>
