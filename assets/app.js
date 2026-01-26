@@ -209,8 +209,9 @@ const fetchWithToken = async (url, options = {}) => {
     payload = null;
   }
   if (!response.ok) {
-    const message = payload?.error || `Request failed with status ${response.status}.`;
-    throw new Error(message);
+    const baseMessage = payload?.error || `Request failed with status ${response.status}.`;
+    const details = payload?.details ? ` ${payload.details}` : '';
+    throw new Error(`${baseMessage}${details}`.trim());
   }
   return payload;
 };
@@ -386,7 +387,10 @@ const parseImportImage = async () => {
     }
   } catch (error) {
     console.error('Failed to parse screenshot.', error);
-    setImportStatus('Unable to parse screenshot. Please try again.', true);
+    const message = error instanceof Error && error.message
+      ? error.message
+      : 'Unable to parse screenshot. Please try again.';
+    setImportStatus(message, true);
   } finally {
     parseImageButton.disabled = false;
   }
